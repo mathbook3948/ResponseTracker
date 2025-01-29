@@ -1,101 +1,128 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [url, setUrl] = useState('');
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [isButtonVisible, setIsButtonVisible] = useState(false);
+  const [buttonText, setButtonText] = useState("티켓팅 클릭");
+  const [responseTime, setResponseTime] = useState(null);
+  const [serverTime, setServerTime] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!url) {
+      alert("URL을 입력해주세요");
+      return;
+    }
+    calculateDelay();
+  };
+
+  const calculateDelay = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/calculateDelay?url=${encodeURIComponent(url)}`, { method: 'GET' });
+      if (!res.ok) throw new Error('서버 요청 실패');
+
+      const data = await res.json();
+      const { delay, currentTime } = data;
+
+      setResponseTime(delay);
+      setServerTime(new Date(currentTime));
+      startCountdown(delay);
+    } catch (error) {
+      console.error('서버 요청 오류:', error);
+      alert('서버 연결 실패! URL을 다시 확인해주세요.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!serverTime) return;
+
+    const interval = setInterval(() => {
+      setServerTime((prevTime) => (prevTime ? new Date(prevTime.getTime() + 1000) : null));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [serverTime]);
+
+  function startCountdown(delay) {
+    let timeLeft = 5 - delay;
+    setIsButtonVisible(true);
+
+    const countdownInterval = setInterval(() => {
+      if (timeLeft <= 0) {
+        clearInterval(countdownInterval);
+        setButtonText("지금 클릭하세요!");
+        setTimeout(() => clickTicketButton(), 1000);
+      } else {
+        setTimeRemaining(timeLeft.toFixed(1));
+        timeLeft -= 0.1;
+      }
+    }, 100);
+  }
+
+  async function clickTicketButton() {
+    alert("티켓팅 완료!");
+    try {
+      const res = await fetch(`${url}/api/ticket`, { method: 'POST' });
+      if (res.ok) alert('티켓팅 성공!');
+    } catch (error) {
+      alert('티켓팅 요청에 실패했습니다.');
+    }
+  }
+
+  return (
+      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 min-h-screen flex flex-col justify-center items-center p-6">
+        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+          <header className="mb-6 text-center">
+            <h1 className="text-2xl font-bold text-indigo-700">서버 속도 및 시간 계산</h1>
+            <p className="text-gray-600">원하는 URL을 입력하여 서버 응답 시간을 확인하고 티켓팅을 시작하세요!</p>
+          </header>
+
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-center gap-3">
+            <input
+                type="text"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-sm"
+                placeholder="http://example.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <button
+                type="submit"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm shadow-md hover:bg-indigo-700 transition duration-300 focus:outline-none"
+            >
+              {buttonText}
+            </button>
+          </form>
+
+          {isLoading ? (
+              <div className="text-center text-sm text-gray-600 mt-4">서버 연결 중...</div>
+          ) : url && (
+              <div className="mt-4 text-center text-sm">
+                <div className="text-gray-700">
+                  서버 통신 속도: <span className="text-indigo-500">{responseTime ? `${responseTime.toFixed(2)}초` : '계산 중...'}</span>
+                </div>
+                <div className="text-gray-700 mt-2">
+                  서버 시간: <span className="text-indigo-500">{serverTime ? serverTime.toLocaleString() : '불러오는 중...'}</span>
+                </div>
+              </div>
+          )}
+
+          <div className="text-center mt-4">
+            <div className="text-lg font-semibold text-gray-700">
+              남은 시간: <span className="text-indigo-500">{timeRemaining}</span>초
+            </div>
+          </div>
+
+          <footer className="text-center text-xs text-gray-500 mt-6">
+            <p>&copy; 2025 티켓팅 앱 | 모든 권리 보유</p>
+          </footer>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
   );
 }
